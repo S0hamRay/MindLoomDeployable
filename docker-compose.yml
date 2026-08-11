@@ -1,0 +1,223 @@
+# Loom — full local stack.
+#
+# Usage:
+#   1. cp .env.example .env   and fill in the credentials (see that file).
+#   2. docker compose up --build
+#   3. Open the frontend at http://localhost:5500
+#      API docs at http://localhost:8000/docs
+#
+# Services: postgres (pgvector), neo4j, neo4j-init (one-shot constraints),
+#           redis, api (FastAPI), worker, frontend (nginx + /api proxy).
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      # Published so the API/worker can run on the host against Compose infra.
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: loom
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-loom}
+      POSTGRES_DB: loom
+    ports:
+      # Host port 5433 to avoid clashing with a Postgres already running on 5432.
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Runs automatically only on first init of an empty data volume.
+      - ./apps/api/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loom -d loom"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  neo4j:
+    image: neo4j:5.26
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
+    ports:
+      - "7474:7474"   # Neo4j Browser UI
+      - "7687:7687"   # Bolt
+    volumes:
+      - neo4jdata:/data
+    healthcheck:
+      # HTTP check avoids auth failures when the volume was created with an
+      # older NEO4J_PASSWORD (NEO4J_AUTH only applies on first init).
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 40s
+
+  # One-shot job that applies the uniqueness constraints, then exits.
+  neo4j-init:
+    image: neo4j:5
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    environment:
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
+    entrypoint:
+      - bash
+      - -c
+      - 'cypher-shell -a bolt://neo4j:7687 -u neo4j -p "$$NEO4J_PASSWORD" -f /constraints.cypher'
+    volumes:
+      - ./apps/api/db/neo4j_constraints.cypher:/constraints.cypher:ro
+    restart: "no"
+
+  api:
+    # Main Loom backend: API, ingestion, search, integrations, and captures.
+    build: ./apps/api
+    environment:
+      # --- the only secret you must provide ---
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set OPENAI_API_KEY in .env}
+      # --- wired to the compose service network (do not need editing) ---
+      POSTGRES_URL: postgresql+asyncpg://loom:${POSTGRES_PASSWORD:-loom}@postgres:5432/loom
+      REDIS_URL: redis://redis:6379/0
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
+      # --- tunables (optional) ---
+      CHUNK_GAP_MINUTES: ${CHUNK_GAP_MINUTES:-30}
+      CHUNK_MAX_TOKENS: ${CHUNK_MAX_TOKENS:-800}
+      SPEAKER_SIMILARITY_THRESHOLD: ${SPEAKER_SIMILARITY_THRESHOLD:-85}
+      RETRIEVAL_SIMILARITY_THRESHOLD: ${RETRIEVAL_SIMILARITY_THRESHOLD:-0.3}
+      RETRIEVAL_CHUNK_LIMIT: ${RETRIEVAL_CHUNK_LIMIT:-5}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_WORKSPACE_OAUTH_REDIRECT_URI: ${GOOGLE_WORKSPACE_OAUTH_REDIRECT_URI:-http://localhost:8000/integrations/google/workspace/callback}
+      GOOGLE_PUBSUB_TOPIC: ${GOOGLE_PUBSUB_TOPIC:-}
+      GOOGLE_DRIVE_WEBHOOK_URL: ${GOOGLE_DRIVE_WEBHOOK_URL:-}
+      GOOGLE_DRIVE_WEBHOOK_SECRET: ${GOOGLE_DRIVE_WEBHOOK_SECRET:-}
+      ZOOM_CLIENT_ID: ${ZOOM_CLIENT_ID:-}
+      ZOOM_CLIENT_SECRET: ${ZOOM_CLIENT_SECRET:-}
+      ZOOM_OAUTH_REDIRECT_URI: ${ZOOM_OAUTH_REDIRECT_URI:-http://localhost:8000/integrations/zoom/callback}
+      ZOOM_WEBHOOK_SECRET_TOKEN: ${ZOOM_WEBHOOK_SECRET_TOKEN:-}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
+      MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID:-common}
+      MICROSOFT_OAUTH_REDIRECT_URI: ${MICROSOFT_OAUTH_REDIRECT_URI:-http://localhost:8000/integrations/microsoft/teams/callback}
+      MICROSOFT_GRAPH_WEBHOOK_URL: ${MICROSOFT_GRAPH_WEBHOOK_URL:-}
+      MICROSOFT_GRAPH_CLIENT_STATE: ${MICROSOFT_GRAPH_CLIENT_STATE:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5500}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      APP_ENV: ${APP_ENV:-development}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-168}
+      ALLOW_DEV_INTEGRATIONS: ${ALLOW_DEV_INTEGRATIONS:-true}
+      GOOGLE_PUBSUB_PUSH_AUDIENCE: ${GOOGLE_PUBSUB_PUSH_AUDIENCE:-}
+      RATE_LIMIT_AUTH: ${RATE_LIMIT_AUTH:-20/minute}
+      RATE_LIMIT_QUERY: ${RATE_LIMIT_QUERY:-30/minute}
+      RATE_LIMIT_CAPTURES: ${RATE_LIMIT_CAPTURES:-30/minute}
+      RATE_LIMIT_INGEST: ${RATE_LIMIT_INGEST:-20/minute}
+      # Local volumes below are for single-node DX. Multi-replica: BLOB_STORAGE_BACKEND=s3 + S3_BUCKET.
+      BLOB_STORAGE_BACKEND: ${BLOB_STORAGE_BACKEND:-local}
+      CAPTURE_STORAGE_ROOT: /app/data/captures
+      BLOB_STORAGE_ROOT: /app/data/blobs
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+      CAPTURE_VISION_MODEL: ${CAPTURE_VISION_MODEL:-gpt-4o-mini}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    volumes:
+      - capturedata:/app/data/captures
+      - blobdata:/app/data/blobs
+
+  worker:
+    build: ./apps/api
+    command: ["python", "-m", "worker"]
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set OPENAI_API_KEY in .env}
+      POSTGRES_URL: postgresql+asyncpg://loom:${POSTGRES_PASSWORD:-loom}@postgres:5432/loom
+      REDIS_URL: redis://redis:6379/0
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_PUBSUB_TOPIC: ${GOOGLE_PUBSUB_TOPIC:-}
+      GOOGLE_DRIVE_WEBHOOK_URL: ${GOOGLE_DRIVE_WEBHOOK_URL:-}
+      GOOGLE_DRIVE_WEBHOOK_SECRET: ${GOOGLE_DRIVE_WEBHOOK_SECRET:-}
+      ZOOM_CLIENT_ID: ${ZOOM_CLIENT_ID:-}
+      ZOOM_CLIENT_SECRET: ${ZOOM_CLIENT_SECRET:-}
+      ZOOM_OAUTH_REDIRECT_URI: ${ZOOM_OAUTH_REDIRECT_URI:-http://localhost:8000/integrations/zoom/callback}
+      ZOOM_WEBHOOK_SECRET_TOKEN: ${ZOOM_WEBHOOK_SECRET_TOKEN:-}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
+      MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID:-common}
+      MICROSOFT_GRAPH_WEBHOOK_URL: ${MICROSOFT_GRAPH_WEBHOOK_URL:-}
+      MICROSOFT_GRAPH_CLIENT_STATE: ${MICROSOFT_GRAPH_CLIENT_STATE:-}
+      BLOB_STORAGE_ROOT: /app/data/blobs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import os,redis; r=redis.Redis.from_url(os.environ['REDIS_URL'], decode_responses=True); assert r.get('loom:worker:heartbeat'), 'no heartbeat'\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    volumes:
+      - blobdata:/app/data/blobs
+
+  frontend:
+    # Main Loom user interface: the production build of the React app.
+    # VITE_API_BASE=/api uses nginx same-origin proxy to the api service.
+    # Staging/prod may bake an absolute https://… API URL instead.
+    build:
+      context: ./apps/web
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-/api}
+        VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+    ports:
+      - "5500:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  neo4jdata:
+  capturedata:
+  redisdata:
+  blobdata:
