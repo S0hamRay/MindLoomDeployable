@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { GoogleIcon } from "@/components/icons";
 import { requestGoogleIdToken } from "@/lib/googleAuth";
 import { useOnboarding, normalizeDomain } from "@/store/onboarding";
-import { AuthError, createOrg, toClientSession } from "@/services/auth";
+import { createOrg, toClientSession } from "@/services/auth";
 import { useSession } from "@/store/session";
 
 export default function CreateOrg() {
@@ -87,7 +87,7 @@ export default function CreateOrg() {
       navigate("/dashboard");
     } catch (err) {
       setApiError(
-        err instanceof AuthError ? err.message : "Could not create organization.",
+        err instanceof Error ? err.message : "Could not create organization.",
       );
     } finally {
       setLoading(false);
