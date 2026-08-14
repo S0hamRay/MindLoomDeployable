@@ -495,7 +495,7 @@ async def get_integrations(
 
 @app.get("/integrations/google/workspace/authorize", response_model=OAuthAuthorizeResponse)
 async def authorize_google_workspace(
-    ctx: Annotated[tuple[str, str], Depends(require_admin_context)],
+    ctx: Annotated[tuple[str, str], Depends(require_user_context)],
 ) -> OAuthAuthorizeResponse:
     """Return a Google OAuth consent URL for Gmail + Drive read sync."""
 
@@ -510,7 +510,7 @@ async def authorize_google_workspace(
 
 @app.post("/integrations/google/workspace/connect-dev", response_model=IntegrationsListResponse)
 async def dev_connect_google_workspace(
-    ctx: Annotated[tuple[str, str], Depends(require_admin_context)],
+    ctx: Annotated[tuple[str, str], Depends(require_user_context)],
 ) -> IntegrationsListResponse:
     """Simulated Workspace connect when Google OAuth credentials are not configured."""
 
@@ -522,7 +522,7 @@ async def dev_connect_google_workspace(
 
 @app.get("/integrations/microsoft/teams/authorize", response_model=OAuthAuthorizeResponse)
 async def authorize_microsoft_teams(
-    ctx: Annotated[tuple[str, str], Depends(require_admin_context)],
+    ctx: Annotated[tuple[str, str], Depends(require_user_context)],
 ) -> OAuthAuthorizeResponse:
     """Return a Microsoft OAuth consent URL for Teams read access."""
 
@@ -537,7 +537,7 @@ async def authorize_microsoft_teams(
 
 @app.post("/integrations/microsoft/teams/connect-dev", response_model=IntegrationsListResponse)
 async def dev_connect_microsoft_teams(
-    ctx: Annotated[tuple[str, str], Depends(require_admin_context)],
+    ctx: Annotated[tuple[str, str], Depends(require_user_context)],
 ) -> IntegrationsListResponse:
     """Simulated Microsoft Teams connect when Microsoft OAuth is not configured."""
 
@@ -583,7 +583,7 @@ async def microsoft_teams_callback(
 
 @app.post("/integrations/microsoft/teams/watch", response_model=TeamsWatchResponse)
 async def watch_microsoft_teams(
-    ctx: Annotated[tuple[str, str], Depends(require_admin_context)],
+    ctx: Annotated[tuple[str, str], Depends(require_user_context)],
     body: Annotated[TeamsWatchRequest, Body()],
 ) -> TeamsWatchResponse:
     """Start or renew a Microsoft Graph subscription for one Teams channel."""
@@ -616,7 +616,7 @@ async def _queue_teams_sync(
 @app.post("/integrations/microsoft/teams/sync", response_model=TeamsSyncStartResponse)
 async def sync_microsoft_teams_now(
     background_tasks: BackgroundTasks,
-    ctx: Annotated[tuple[str, str], Depends(require_admin_context)],
+    ctx: Annotated[tuple[str, str], Depends(require_user_context)],
     max_results: int = Query(25, ge=1, le=100),
 ) -> TeamsSyncStartResponse:
     """Queue an immediate Microsoft Teams sync for the current user."""
@@ -632,7 +632,7 @@ async def sync_microsoft_teams_now(
 
 @app.post("/integrations/google/workspace/gmail/watch", response_model=WorkspaceWatchResponse)
 async def watch_gmail(
-    ctx: Annotated[tuple[str, str], Depends(require_admin_context)],
+    ctx: Annotated[tuple[str, str], Depends(require_user_context)],
 ) -> WorkspaceWatchResponse:
     """Start or renew Gmail INBOX push notifications for the current user."""
 
@@ -642,7 +642,7 @@ async def watch_gmail(
 
 @app.post("/integrations/google/workspace/drive/watch", response_model=WorkspaceWatchResponse)
 async def watch_drive(
-    ctx: Annotated[tuple[str, str], Depends(require_admin_context)],
+    ctx: Annotated[tuple[str, str], Depends(require_user_context)],
 ) -> WorkspaceWatchResponse:
     """Start or renew Drive changes notifications for the current user."""
 
@@ -680,7 +680,7 @@ async def _queue_workspace_sync(
 @app.post("/integrations/google/workspace/gmail/sync", response_model=WorkspaceSyncStartResponse)
 async def sync_gmail_now(
     background_tasks: BackgroundTasks,
-    ctx: Annotated[tuple[str, str], Depends(require_admin_context)],
+    ctx: Annotated[tuple[str, str], Depends(require_user_context)],
     max_results: int = Query(25, ge=1, le=100),
 ) -> WorkspaceSyncStartResponse:
     """Queue an immediate Gmail incremental/backfill sync for the current user."""
@@ -698,7 +698,7 @@ async def sync_gmail_now(
 @app.post("/integrations/google/workspace/drive/sync", response_model=WorkspaceSyncStartResponse)
 async def sync_drive_now(
     background_tasks: BackgroundTasks,
-    ctx: Annotated[tuple[str, str], Depends(require_admin_context)],
+    ctx: Annotated[tuple[str, str], Depends(require_user_context)],
     max_results: int = Query(25, ge=1, le=100),
 ) -> WorkspaceSyncStartResponse:
     """Queue an immediate Drive changes sync for the current user."""

@@ -30,7 +30,6 @@ from models import (
 # Re-export auth dependencies so existing route modules can keep importing from here.
 __all_auth_deps__ = (require_user_context, require_admin_context, require_org_id)
 
-
 logger = logging.getLogger(__name__)
 
 # Google may return a subset of requested scopes; avoid hard failures on exchange.

@@ -88,3 +88,4 @@ def test_oauth_state_missing_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(Exception) as exc:
         _pop_oauth_state("does-not-exist")
     assert "invalid or expired" in str(exc.value.detail).lower()
+

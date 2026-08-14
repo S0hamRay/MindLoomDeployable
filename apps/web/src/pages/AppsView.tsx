@@ -35,6 +35,7 @@ import {
 } from "@/services/reviews";
 
 interface AppsViewProps {
+  isAdmin: boolean;
   oauthStatus?: "connected" | "error" | null;
   oauthError?: string | null;
   setupProvider?: ConnectionProvider | null;
@@ -42,6 +43,7 @@ interface AppsViewProps {
 }
 
 export default function AppsView({
+  isAdmin,
   oauthStatus,
   oauthError,
   setupProvider,
@@ -76,13 +78,13 @@ export default function AppsView({
       setMicrosoftOauthEnabled(data.microsoft_oauth_enabled);
       setZoomOauthEnabled(data.zoom_oauth_enabled);
       setDevIntegrationsAllowed(Boolean(data.dev_integrations_allowed));
-      setReviews(await listKnowledgeReviews().catch(() => []));
+      setReviews(isAdmin ? await listKnowledgeReviews().catch(() => []) : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load apps.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     void loadIntegrations();
@@ -107,7 +109,7 @@ export default function AppsView({
       setError(oauthError ?? "Sign-in was cancelled or failed.");
       onOAuthHandled?.();
     }
-  }, [setupProvider, oauthStatus, oauthError, onOAuthHandled, loadIntegrations]);
+  }, [setupProvider, oauthStatus, oauthError, onOAuthHandled, loadIntegrations, isAdmin]);
 
   async function connectWorkspace(provider: ConnectionProvider) {
     setBusyProvider(provider);
@@ -159,7 +161,7 @@ export default function AppsView({
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">Connected workspaces</h2>
         <p className="mt-1 text-muted-foreground">
-          Choose approved company locations once. Loom imports their knowledge and keeps it current.
+          Connect Google, Microsoft 365, or Zoom. Loom imports the locations you approve and keeps them current.
         </p>
       </div>
 
@@ -251,6 +253,7 @@ export default function AppsView({
         </CardContent>
       </Card>
 
+      {isAdmin && (
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Knowledge review queue</CardTitle>
@@ -325,6 +328,7 @@ export default function AppsView({
           )}
         </CardContent>
       </Card>
+      )}
 
     </div>
   );

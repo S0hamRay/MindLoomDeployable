@@ -42,10 +42,10 @@ npm run lint     # tsc --noEmit
 /dashboard          Main app (requires session)
 ```
 
-Creating an organization goes directly to the dashboard. Administrators then
-connect company knowledge from **Apps**, optionally add an employee directory
-from **Organization**, and invite employees later. Members do not see workspace
-connection or organization-creation controls.
+Creating an organization goes directly to the dashboard. Every member can
+connect Google, Microsoft 365, and Zoom, and upload files or WhatsApp exports.
+Administrators also add the employee directory and moderate the knowledge
+review queue.
 
 ## Production / staging build
 

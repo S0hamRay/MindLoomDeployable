@@ -18,7 +18,6 @@ import {
   type WhatsAppPreview,
 } from "@/services/ingest";
 import { cn } from "@/lib/utils";
-import { useSession } from "@/store/session";
 import { PrimaryButton } from "@/components/PrimaryButton";
 
 type ItemKind = "document" | "json";
@@ -49,7 +48,6 @@ export default function UploadData() {
   const [visibility, setVisibility] = useState<"private" | "organization">("private");
   const inputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
-  const isAdmin = useSession((state) => state.role === "admin");
 
   const update = useCallback((id: string, patch: Partial<UploadItem>) => {
     setItems((prev) =>
@@ -140,7 +138,7 @@ export default function UploadData() {
         </div>
       </div>
 
-      {isAdmin && <WhatsAppImport metadata={metadata} visibility={visibility} />}
+      <WhatsAppImport metadata={metadata} visibility={visibility} />
 
       <input
         id={inputId}

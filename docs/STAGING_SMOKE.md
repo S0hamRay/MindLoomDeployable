@@ -53,7 +53,7 @@ Pre-deploy gate: `cd apps/api && pytest`.
 - [ ] `APP_ENV=production`: `/docs` and `/openapi.json` absent; `connect-dev` blocked; `/graph/debug` → 404
 - [ ] CORS rejects a foreign browser origin
 - [ ] Production web build does **not** call `http://localhost:8000` (use `/api` or `https://…` bake)
-- [ ] Non-admin cannot open admin-only Apps setup / Zoom connect / knowledge-review moderation
+- [ ] Members can connect Google / Microsoft / Zoom and upload files; knowledge-review stays admin-only
 
 ---
 

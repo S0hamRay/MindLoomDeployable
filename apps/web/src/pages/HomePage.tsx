@@ -45,16 +45,15 @@ export default function HomePage({
 
       <DesktopAgentDownload />
 
-      {isAdmin && (
-        <section className="border-t border-border pt-8">
-          <AppsView
-            setupProvider={setupProvider}
-            oauthStatus={oauthStatus}
-            oauthError={oauthError}
-            onOAuthHandled={onOAuthHandled}
-          />
-        </section>
-      )}
+      <section className="border-t border-border pt-8">
+        <AppsView
+          isAdmin={isAdmin}
+          setupProvider={setupProvider}
+          oauthStatus={oauthStatus}
+          oauthError={oauthError}
+          onOAuthHandled={onOAuthHandled}
+        />
+      </section>
 
       <section className="min-h-[620px] border-t border-border pt-8">
         <OrganizationView />

@@ -11,7 +11,7 @@ from auth import UserRow
 from config import get_settings
 from database import get_session_factory
 from durable_jobs import enqueue
-from integrations import AppConnectionRow, assert_dev_integrations_allowed, list_integrations, require_admin_context
+from integrations import AppConnectionRow, assert_dev_integrations_allowed, list_integrations, require_user_context
 from models import IntegrationsListResponse, OAuthAuthorizeResponse
 from zoom_workspace import (
     PROVIDER_ZOOM,
@@ -26,14 +26,14 @@ router = APIRouter(tags=["zoom"])
 
 @router.get("/integrations/zoom/authorize", response_model=OAuthAuthorizeResponse)
 async def authorize(
-    ctx: tuple[str, str] = Depends(require_admin_context),
+    ctx: tuple[str, str] = Depends(require_user_context),
 ) -> OAuthAuthorizeResponse:
     return OAuthAuthorizeResponse(authorization_url=await start_zoom_oauth(*ctx))
 
 
 @router.post("/integrations/zoom/connect-dev", response_model=IntegrationsListResponse)
 async def connect_dev(
-    ctx: tuple[str, str] = Depends(require_admin_context),
+    ctx: tuple[str, str] = Depends(require_user_context),
 ) -> IntegrationsListResponse:
     assert_dev_integrations_allowed()
     factory = get_session_factory()
@@ -52,7 +52,7 @@ async def callback(code: str, state: str) -> RedirectResponse:
 
 @router.post("/integrations/zoom/sync")
 async def sync_now(
-    ctx: tuple[str, str] = Depends(require_admin_context),
+    ctx: tuple[str, str] = Depends(require_user_context),
 ) -> dict[str, str]:
     job_id = await enqueue(
         "zoom_sync",
