@@ -15,18 +15,18 @@ Privacy-focused menu-bar agent that captures **structured Accessibility interact
 - macOS 13+
 - Swift 5.9+ / Xcode Command Line Tools (or Xcode)
 - Loom API running (e.g. `docker compose up` → `http://localhost:8000`)
-- Accessibility permission for the **packaged** `MindLoomAgent.app` (not a raw `swift run` binary)
+- Accessibility permission for the **packaged** `Loom Capture.app` (not a raw `swift run` binary)
 
 ### Accessibility (important)
 
 macOS ties Accessibility to a specific app identity. After every rebuild:
 
 1. `./scripts/package-app.sh`
-2. `open dist/MindLoomAgent.app`
+2. `open "dist/Loom Capture.app"`
 3. System Settings → Privacy & Security → Accessibility → enable **Loom Capture**
 4. **Quit the agent completely and reopen it** (permission does not apply to the already-running process)
 
-If it still says permission isn’t granted, remove old `MindLoomAgent` / `Loom Capture` rows, add `dist/MindLoomAgent.app` with +, enable, quit, reopen.
+If it still says permission isn’t granted, remove old `MindLoomAgent` / `Loom Capture` rows, add `dist/Loom Capture.app` with +, enable, quit, reopen.
 
 ## Build & run
 
@@ -41,7 +41,7 @@ Or package and launch as a real macOS app (recommended — survives closing the 
 cd apps/desktop-agent
 chmod +x scripts/package-app.sh
 ./scripts/package-app.sh
-open dist/MindLoomAgent.app
+open "dist/Loom Capture.app"
 ```
 
 A **Loom Capture** control window should open. Use that window for Start / Pause /
@@ -50,9 +50,37 @@ too full for it to appear.
 
 If you only ran `swift build`, that compiles and exits — it does not launch the agent.
 
+### Publish a website download
+
+The package script also writes `apps/web/public/downloads/LoomCapture-macos.zip`.
+Rebuild/redeploy the frontend after packaging so nginx can serve it.
+
+For a deployed site, bake the public web origin so downloaded copies sign in
+against production instead of localhost:
+
+```bash
+cd apps/desktop-agent
+LOOM_WEB_BASE=https://your-web-host ./scripts/package-app.sh
+# Optional if the API is not at https://your-web-host/api:
+# LOOM_API_BASE=https://your-api-host
+```
+
+Then rebuild the web image. People can:
+
+- Open `/download` on the website
+- Or use **Download Loom Capture for Mac** on the welcome page, Home, and Workflows
+
+macOS Gatekeeper blocks unsigned downloads. First launch: unzip, right-click
+**Loom Capture**, choose Open. Then grant Accessibility, quit, and reopen.
+
+The zip is gitignored by default. Either force-add it for Git-based deploys, or
+host it separately and set `VITE_DESKTOP_AGENT_DOWNLOAD_URL`.
+
 ## Configuration
 
-On first launch the agent writes `~/.mindloom/agent.json`:
+On first launch the agent writes `~/.mindloom/agent.json`. Packaged builds bake
+`apiBase` / `webBase` from `LOOM_WEB_BASE` and `LOOM_API_BASE` (or `/api` on the
+web host). A local unpackaged build still defaults to:
 
 ```json
 {

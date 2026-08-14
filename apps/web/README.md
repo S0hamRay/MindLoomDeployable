@@ -37,6 +37,8 @@ npm run lint     # tsc --noEmit
 /setup/signin       Sign in (returning users)
 /setup/org          Create Organization
 /setup/csv          Optional admin-only employee directory import
+/download           macOS Loom Capture download (public)
+/desktop-auth       Desktop agent Google sign-in bridge
 /dashboard          Main app (requires session)
 ```
 
@@ -65,3 +67,11 @@ Production builds **throw at startup** if `VITE_API_BASE` is missing — never s
 3. Set API `FRONTEND_URL` and `CORS_ALLOWED_ORIGINS` to the public web origin(s).
 4. Register GIS authorized JavaScript origins and OAuth redirect URIs on the public HTTPS hosts (`GOOGLE_WORKSPACE_OAUTH_REDIRECT_URI`, Microsoft, Zoom).
 5. Set production secrets (`SESSION_SECRET`, `TOKEN_ENCRYPTION_KEY`, webhook secrets) with `APP_ENV=production`.
+6. Package the macOS agent on a Mac **before** rebuilding the frontend image, so `/downloads/LoomCapture-macos.zip` is included:
+
+   ```bash
+   LOOM_WEB_BASE=https://your-web-host \
+     ./apps/desktop-agent/scripts/package-app.sh
+   ```
+
+   Then rebuild/redeploy `apps/web`. People can download from `/download`. If you host the zip elsewhere (GitHub Release, S3), bake `VITE_DESKTOP_AGENT_DOWNLOAD_URL` instead.

@@ -166,12 +166,19 @@ export default function DesktopAuth() {
         title="Desktop sign-in"
         subtitle="Open this page from the Loom Capture agent (Sign in with Google)."
       >
-        <p className="text-sm text-muted-foreground">
-          The agent starts a local callback and appends <code>?port=…</code> to this URL.
-        </p>
-        <Link to="/setup" className="text-sm underline underline-offset-2">
-          Back to setup
-        </Link>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            The agent starts a local callback and appends <code>?port=…</code> to this URL.
+          </p>
+          <div className="flex flex-col gap-2">
+            <Link to="/download" className="text-sm underline underline-offset-2">
+              Download Loom Capture
+            </Link>
+            <Link to="/setup" className="text-sm underline underline-offset-2">
+              Back to setup
+            </Link>
+          </div>
+        </div>
       </WizardCard>
     );
   }

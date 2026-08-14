@@ -20,11 +20,32 @@ enum AgentConfigStore {
         do {
             let data = try Data(contentsOf: url)
             let decoder = JSONDecoder()
-            return try decoder.decode(AgentConfig.self, from: data)
+            let loaded = try decoder.decode(AgentConfig.self, from: data)
+            return migrateLocalhostDefaultsIfNeeded(loaded)
         } catch {
             NSLog("MindLoomAgent: failed to load config, using defaults: %@", "\(error)")
             return .default
         }
+    }
+
+    /// If this build was packaged for a deployed host, replace leftover local-dev URLs.
+    private static func migrateLocalhostDefaultsIfNeeded(_ config: AgentConfig) -> AgentConfig {
+        var next = config
+        next.apiBase = AgentConfig.resolvedAPIBase(apiBase: next.apiBase, webBase: next.webBase)
+        let bundled = AgentConfig.default
+        let webIsLocal = isLocalDevHost(next.webBase)
+        let bundledIsRemote = !isLocalDevHost(bundled.webBase)
+        if webIsLocal && bundledIsRemote {
+            next.apiBase = bundled.apiBase
+            next.webBase = bundled.webBase
+            save(next)
+        }
+        return next
+    }
+
+    private static func isLocalDevHost(_ value: String) -> Bool {
+        let lower = value.lowercased()
+        return lower.contains("localhost") || lower.contains("127.0.0.1")
     }
 
     static func save(_ config: AgentConfig) {

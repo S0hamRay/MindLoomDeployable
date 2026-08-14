@@ -3,6 +3,7 @@ import type { OrgSummary } from "@/services/auth";
 import AppsView from "@/pages/AppsView";
 import OrganizationView from "@/pages/OrganizationView";
 import { Card, CardContent } from "@/components/ui/card";
+import { DesktopAgentDownload } from "@/components/DesktopAgentDownload";
 
 export default function HomePage({
   summary,
@@ -41,6 +42,8 @@ export default function HomePage({
           ))}
         </div>
       </section>
+
+      <DesktopAgentDownload />
 
       {isAdmin && (
         <section className="border-t border-border pt-8">

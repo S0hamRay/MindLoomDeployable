@@ -95,16 +95,45 @@ struct AgentConfig: Codable {
         !accessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    static let `default` = AgentConfig(
-        apiBase: "http://localhost:8000",
-        webBase: "http://localhost:5500",
-        orgId: "default",
-        userId: "desktop-user",
-        accessToken: "",
-        email: "",
-        allowlist: [],
-        idleGapSeconds: 90
-    )
+    /// Production builds bake these into Info.plist via `scripts/package-app.sh`.
+    static var bundledWebBase: String {
+        plistString("LoomWebBase") ?? "http://localhost:5500"
+    }
+
+    static var bundledAPIBase: String {
+        let raw = plistString("LoomAPIBase") ?? "http://localhost:8000"
+        return resolvedAPIBase(apiBase: raw, webBase: bundledWebBase)
+    }
+
+    static var `default`: AgentConfig {
+        AgentConfig(
+            apiBase: bundledAPIBase,
+            webBase: bundledWebBase,
+            orgId: "default",
+            userId: "desktop-user",
+            accessToken: "",
+            email: "",
+            allowlist: [],
+            idleGapSeconds: 90
+        )
+    }
+
+    /// Absolute API origin. Relative values such as `/api` are resolved against `webBase`.
+    static func resolvedAPIBase(apiBase: String, webBase: String) -> String {
+        let api = apiBase.trimmingCharacters(in: .whitespacesAndNewlines)
+        if api.lowercased().hasPrefix("http://") || api.lowercased().hasPrefix("https://") {
+            return api.hasSuffix("/") ? String(api.dropLast()) : api
+        }
+        let web = webBase.hasSuffix("/") ? String(webBase.dropLast()) : webBase
+        if api.isEmpty { return web }
+        return api.hasPrefix("/") ? web + api : web + "/" + api
+    }
+
+    private static func plistString(_ key: String) -> String? {
+        guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
 
     enum CodingKeys: String, CodingKey {
         case apiBase, webBase, orgId, userId, accessToken, email, allowlist, idleGapSeconds
@@ -132,8 +161,9 @@ struct AgentConfig: Codable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        apiBase = try container.decodeIfPresent(String.self, forKey: .apiBase) ?? AgentConfig.default.apiBase
-        webBase = try container.decodeIfPresent(String.self, forKey: .webBase) ?? AgentConfig.default.webBase
+        webBase = try container.decodeIfPresent(String.self, forKey: .webBase) ?? AgentConfig.bundledWebBase
+        let rawAPI = try container.decodeIfPresent(String.self, forKey: .apiBase) ?? AgentConfig.bundledAPIBase
+        apiBase = AgentConfig.resolvedAPIBase(apiBase: rawAPI, webBase: webBase)
         orgId = try container.decodeIfPresent(String.self, forKey: .orgId) ?? AgentConfig.default.orgId
         userId = try container.decodeIfPresent(String.self, forKey: .userId) ?? AgentConfig.default.userId
         accessToken = try container.decodeIfPresent(String.self, forKey: .accessToken) ?? ""

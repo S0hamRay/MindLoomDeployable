@@ -429,7 +429,7 @@ final class ControlPanel: NSObject {
         } else {
             let bundleHint = AccessibilityPermission.isRunningFromAppBundle
                 ? "Enable Loom Capture in System Settings → Accessibility, then Quit and reopen."
-                : "Run the packaged .app (dist/MindLoomAgent.app), not a raw swift binary."
+                : "Run the packaged .app (dist/Loom Capture.app), not a raw swift binary."
             permissionLabel.stringValue = "Accessibility not granted. \(bundleHint)"
             permissionLabel.isHidden = false
         }

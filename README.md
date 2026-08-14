@@ -123,7 +123,8 @@ swift run MindLoomAgent
 ```
 
 See [`apps/desktop-agent/README.md`](apps/desktop-agent/README.md) for Accessibility
-permission, allowlist setup, and the Skill File smoke path.
+permission, allowlist setup, the Skill File smoke path, and publishing a website
+download (`/download` after `./scripts/package-app.sh` + frontend rebuild).
 
 Tests:
 

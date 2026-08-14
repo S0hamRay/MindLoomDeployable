@@ -22,6 +22,7 @@ import {
 } from "@/services/skillFiles";
 import { useSession } from "@/store/session";
 import { cn } from "@/lib/utils";
+import { DesktopAgentDownload } from "@/components/DesktopAgentDownload";
 
 function statusStyles(status: SkillFile["status"]): string {
   if (status === "approved") return "bg-emerald-50 text-emerald-800 border-emerald-200";
@@ -240,6 +241,8 @@ export default function WorkflowsView() {
           Refresh
         </button>
       </div>
+
+      <DesktopAgentDownload compact />
 
       {error && (
         <div className="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">

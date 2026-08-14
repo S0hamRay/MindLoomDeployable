@@ -45,6 +45,7 @@ Pre-deploy gate: `cd apps/api && pytest`.
 
 - [ ] Browser extension: set staging API base + Bearer access token → approve a screenshot → appears in org-scoped capture list
 - [ ] (Optional) Desktop agent activity session → Skill File draft → expert approve
+- [ ] `/download` serves Loom Capture (zip present after packaging + frontend rebuild)
 
 ## Manual — durability and hardening
 
@@ -59,5 +60,6 @@ Pre-deploy gate: `cd apps/api && pytest`.
 ## Notes
 
 - “Invite flow” is not a first-class product path yet — same-domain second user is the stand-in.
-- Extension and desktop agent still default to localhost in their own configs; point them at staging manually for this checklist.
+- Extension still defaults to localhost in its own config; point it at staging manually for this checklist.
+- Package the desktop agent with `LOOM_WEB_BASE` set to the staging web origin so `/download` copies sign in against staging.
 - Wire `scripts/staging_smoke.sh` into CI later; this slice is checklist + curl only.
