@@ -45,8 +45,8 @@ open "dist/Loom Capture.app"
 ```
 
 A **Loom Capture** control window should open. Use that window for Start / Pause /
-Allowlist / Upload. A menu-bar item is also registered, but your menu bar may be
-too full for it to appear.
+End. Open **Setup** (above Sign out) for allowlist and Accessibility. A menu-bar
+item is also registered, but your menu bar may be too full for it to appear.
 
 If you only ran `swift build`, that compiles and exits — it does not launch the agent.
 
@@ -106,7 +106,7 @@ You should not need to copy tokens from DevTools. Use **Sign out** to clear the 
 
 `apiBase` is the Loom API the agent uploads to. `webBase` is only for the browser sign-in page.
 
-- **Add Frontmost App to Allowlist** — grant capture for the active app
+- **Add Frontmost App to Allowlist** — grant capture for the active app (Setup screen or menu bar)
 - **Remove** an allowlisted app
 - **Open Config File…** / **Reload Config**
 - **Grant Accessibility Permission…** if needed
@@ -115,13 +115,11 @@ Local raw events (debug / retention) are appended under `~/.mindloom/events/` an
 
 ## Capture workflow
 
-1. Grant Accessibility when prompted (System Settings → Privacy & Security → Accessibility).
-2. Add the apps you want captured to the allowlist.
+1. Grant Accessibility when prompted (System Settings → Privacy & Security → Accessibility), or open **Setup**.
+2. Add the apps you want captured to the allowlist (**Setup**).
 3. **Start Session** — status shows Capturing (or Paused / Needs Accessibility).
-4. Work in allowlisted apps. Use **Pause Capture** anytime (user-controlled, independent of admin).
-5. When done, choose either:
-   - **End & Upload Summary** → `POST /captures/activity-sessions`
-   - **End, Upload & Create Skill File** → upload + `POST /captures/activity-sessions/{id}/analyze`
+4. Work in allowlisted apps. Use **Pause / Resume** anytime (user-controlled, independent of admin).
+5. **End** uploads the session and drafts a Skill File (`POST /captures/activity-sessions` plus analyze).
 6. Review the proposed Skill File in the web app **Workflows** tab (source badge: **Desktop**).
 7. Approve to ingest into the knowledge graph (same path as browser skills).
 
@@ -130,7 +128,7 @@ Local raw events (debug / retention) are appended under `~/.mindloom/events/` an
 1. Start the stack: `docker compose up --build` from the repo root.
 2. Run the agent; click **Sign in with Google** and finish in the browser.
 3. Add **Notes** (or another app) to the allowlist.
-4. Start a session, create/edit a note for ~30s, then **End, Upload & Create Skill File**.
+4. Start a session, create/edit a note for ~30s, then **End**.
 5. Open <http://localhost:5500> → Workflows → confirm a **Desktop** skill draft.
 6. Approve it; confirm it becomes searchable via Ask / appears as a `skill_file` document.
 

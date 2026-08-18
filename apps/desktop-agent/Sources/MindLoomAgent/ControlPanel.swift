@@ -1,11 +1,12 @@
 import AppKit
 
-/// Always-visible control window with a simple two-page flow:
-/// 1) Sign in  2) Capture (skipped automatically when a session token exists).
+/// Always-visible control window with a three-page flow:
+/// 1) Sign in  2) Capture  3) Setup (from the capture page).
 final class ControlPanel: NSObject {
     private enum Page {
         case signIn
         case capture
+        case setup
     }
 
     private let engine: CaptureEngine
@@ -15,6 +16,7 @@ final class ControlPanel: NSObject {
     private let pageContainer = NSView()
     private let signInPage = NSView()
     private let capturePage = NSView()
+    private let setupPage = NSView()
 
     private let statusDot = LoomStatusDot()
     private let statusLabel = NSTextField(labelWithString: "Idle")
@@ -29,8 +31,9 @@ final class ControlPanel: NSObject {
     private var signOutButton: LoomButton!
     private var startButton: LoomButton!
     private var pauseButton: LoomButton!
-    private var uploadButton: LoomButton!
-    private var uploadAnalyzeButton: LoomButton!
+    private var endButton: LoomButton!
+    private var setupNavButton: LoomButton!
+    private var backFromSetupButton: LoomButton!
     private var allowlistButton: LoomButton!
     private var grantPermissionButton: LoomButton!
     private var recheckPermissionButton: LoomButton!
@@ -68,7 +71,11 @@ final class ControlPanel: NSObject {
 
     func reloadConfig(_ config: AgentConfig) {
         self.config = config
-        showPage(config.isSignedIn ? .capture : .signIn, animated: false)
+        if !config.isSignedIn {
+            showPage(.signIn, animated: false)
+        } else if currentPage == .signIn {
+            showPage(.capture, animated: false)
+        }
         refresh()
     }
 
@@ -107,8 +114,9 @@ final class ControlPanel: NSObject {
 
         buildSignInPage()
         buildCapturePage()
+        buildSetupPage()
 
-        for page in [signInPage, capturePage] {
+        for page in [signInPage, capturePage, setupPage] {
             page.translatesAutoresizingMaskIntoConstraints = false
             page.isHidden = true
             pageContainer.addSubview(page)
@@ -158,18 +166,46 @@ final class ControlPanel: NSObject {
     private func buildCapturePage() {
         startButton = LoomButton(title: "Start Session", style: .primary, target: self, action: #selector(startSession))
         pauseButton = LoomButton(title: "Pause / Resume", style: .secondary, target: self, action: #selector(togglePause))
-        uploadAnalyzeButton = LoomButton(
-            title: "Upload & Create Skill",
+        endButton = LoomButton(
+            title: "End",
             style: .primary,
             target: self,
-            action: #selector(endUploadAnalyze)
+            action: #selector(endSession)
         )
-        uploadButton = LoomButton(
-            title: "Upload Summary",
+        setupNavButton = LoomButton(
+            title: "Setup",
             style: .secondary,
             target: self,
-            action: #selector(endUpload)
+            action: #selector(openSetup)
         )
+        signOutButton = LoomButton(title: "Sign out", style: .destructive, target: self, action: #selector(signOut))
+
+        let sessionColumn = LoomLayout.column(
+            spacing: 8,
+            views: [
+                makeSectionHeading("Session"),
+                startButton,
+                pauseButton,
+                endButton,
+            ]
+        )
+
+        let stack = LoomLayout.column(
+            spacing: 10,
+            views: [
+                makeBrandHeader(subtitle: nil),
+                makeStatusCard(),
+                makeAccountAllowlistCard(),
+                sessionColumn,
+                flexibleSpacer(),
+                setupNavButton,
+                signOutButton,
+            ]
+        )
+        pinStack(stack, to: capturePage)
+    }
+
+    private func buildSetupPage() {
         allowlistButton = LoomButton(
             title: "Allowlist Frontmost App",
             style: .secondary,
@@ -189,42 +225,27 @@ final class ControlPanel: NSObject {
             action: #selector(recheckPermission)
         )
         quitFromCaptureButton = LoomButton(title: "Quit", style: .ghost, target: self, action: #selector(quit))
-        signOutButton = LoomButton(title: "Sign out", style: .destructive, target: self, action: #selector(signOut))
-
-        let sessionColumn = LoomLayout.column(
-            spacing: 8,
-            views: [
-                makeSectionHeading("Session"),
-                startButton,
-                pauseButton,
-                uploadAnalyzeButton,
-                uploadButton,
-            ]
+        backFromSetupButton = LoomButton(
+            title: "Back",
+            style: .secondary,
+            target: self,
+            action: #selector(closeSetup)
         )
-        let setupColumn = LoomLayout.column(
-            spacing: 8,
+
+        let stack = LoomLayout.column(
+            spacing: 10,
             views: [
+                makeBrandHeader(subtitle: "Allowlist apps and grant Accessibility."),
                 makeSectionHeading("Setup"),
                 allowlistButton,
                 grantPermissionButton,
                 recheckPermissionButton,
                 quitFromCaptureButton,
-            ]
-        )
-        let columns = LoomLayout.row(spacing: 12, views: [sessionColumn, setupColumn])
-
-        let stack = LoomLayout.column(
-            spacing: 10,
-            views: [
-                makeBrandHeader(subtitle: nil),
-                makeStatusCard(),
-                makeAccountAllowlistCard(),
-                columns,
                 flexibleSpacer(),
-                signOutButton,
+                backFromSetupButton,
             ]
         )
-        pinStack(stack, to: capturePage)
+        pinStack(stack, to: setupPage)
     }
 
     private func pinStack(_ stack: NSStackView, to page: NSView) {
@@ -349,24 +370,33 @@ final class ControlPanel: NSObject {
 
     private func showPage(_ page: Page, animated: Bool) {
         currentPage = page
-        let showSignIn = page == .signIn
+        let updates = {
+            self.signInPage.isHidden = page != .signIn
+            self.capturePage.isHidden = page != .capture
+            self.setupPage.isHidden = page != .setup
+        }
         if animated {
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = 0.18
-                signInPage.animator().isHidden = !showSignIn
-                capturePage.animator().isHidden = showSignIn
+                updates()
             }
         } else {
-            signInPage.isHidden = !showSignIn
-            capturePage.isHidden = showSignIn
+            updates()
         }
-        window.title = showSignIn ? "Loom Capture — Sign in" : "Loom Capture"
+        switch page {
+        case .signIn:
+            window.title = "Loom Capture — Sign in"
+        case .setup:
+            window.title = "Loom Capture — Setup"
+        case .capture:
+            window.title = "Loom Capture"
+        }
     }
 
     private func refresh() {
         if config.isSignedIn, currentPage == .signIn, !signingIn {
             showPage(.capture, animated: false)
-        } else if !config.isSignedIn, currentPage == .capture {
+        } else if !config.isSignedIn, currentPage != .signIn {
             showPage(.signIn, animated: false)
         }
 
@@ -436,8 +466,7 @@ final class ControlPanel: NSObject {
 
         let sessionLive = engine.sessionId != nil
         pauseButton?.isEnabled = sessionLive
-        uploadButton?.isEnabled = sessionLive && !signingIn
-        uploadAnalyzeButton?.isEnabled = sessionLive && !signingIn
+        endButton?.isEnabled = sessionLive && !signingIn
         startButton?.isEnabled = !sessionLive || engine.status == .idle || engine.status == .needsPermission
     }
 
@@ -535,11 +564,15 @@ final class ControlPanel: NSObject {
         refresh()
     }
 
-    @objc private func endUpload() {
-        Task { await finish(analyze: false) }
+    @objc private func openSetup() {
+        showPage(.setup, animated: true)
     }
 
-    @objc private func endUploadAnalyze() {
+    @objc private func closeSetup() {
+        showPage(.capture, animated: true)
+    }
+
+    @objc private func endSession() {
         Task { await finish(analyze: true) }
     }
 

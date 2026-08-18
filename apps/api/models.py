@@ -772,9 +772,9 @@ class QueryRequest(BaseModel):
 
 
 class MessageablePerson(BaseModel):
-    """A signed-in org member that can receive Expert Messages."""
+    """A person who can receive an Expert Message and/or email."""
 
-    user_id: str
+    user_id: str = ""
     name: str
     email: str
     title: Optional[str] = None
@@ -788,6 +788,18 @@ class ProposedExpertMessage(BaseModel):
     recipient_name: str
     recipient_email: str
     message: str
+    candidates: list[MessageablePerson] = Field(default_factory=list)
+
+
+class ProposedEmail(BaseModel):
+    """Draft email awaiting user confirmation in Ask before Gmail send."""
+
+    recipient_email: str = ""
+    recipient_name: str = ""
+    recipient_user_id: Optional[str] = None
+    subject: str
+    body: str
+    google_connected: bool = False
     candidates: list[MessageablePerson] = Field(default_factory=list)
 
 
@@ -862,6 +874,10 @@ class QueryResponse(BaseModel):
     proposed_message: Optional[ProposedExpertMessage] = Field(
         default=None,
         description="Draft Expert Message awaiting explicit user approval in Ask.",
+    )
+    proposed_email: Optional[ProposedEmail] = Field(
+        default=None,
+        description="Draft email awaiting explicit user approval in Ask.",
     )
     proposed_pull_request: Optional[ProposedPullRequest] = Field(
         default=None,

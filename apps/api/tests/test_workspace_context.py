@@ -101,7 +101,7 @@ async def test_propose_workspace_does_not_create(monkeypatch) -> None:
     monkeypatch.setattr(workspace_context, "propose_workspace_draft", fake_draft)
     monkeypatch.setattr(workspaces, "create_workspace", boom)
 
-    result, msg, pr, ws = await ask_agent._run_tool(
+    result, msg, pr, ws, _email = await ask_agent._run_tool(
         name="propose_workspace",
         arguments={"name": "Project X", "purpose": "Project X"},
         org_id="org-1",

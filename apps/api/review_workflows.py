@@ -18,6 +18,8 @@ from source_registry import (
     mark_external_source_deleted,
 )
 
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
@@ -607,7 +609,18 @@ async def lookup_messageable_people(
 
     for hit in directory_hits:
         email = str(hit.get("email") or "").lower()
-        if not email or email not in by_email:
+        if not email:
+            continue
+        if email not in by_email:
+            by_email[email] = {
+                "user_id": "",
+                "name": hit.get("name") or email,
+                "email": email,
+                "role": None,
+                "title": hit.get("title"),
+                "department": hit.get("department"),
+                "rank_score": int(hit.get("rank_score") or 5),
+            }
             continue
         item = by_email[email]
         if hit.get("title"):
@@ -657,7 +670,58 @@ async def lookup_messageable_people(
     results: list[dict] = []
     for item in ranked[:limit]:
         results.append({k: v for k, v in item.items() if k != "rank_score"})
+    if _EMAIL_RE.match(cleaned):
+        typed = cleaned.lower()
+        if not any(str(item.get("email") or "").lower() == typed for item in results):
+            results.insert(
+                0,
+                {
+                    "user_id": "",
+                    "name": typed.split("@")[0],
+                    "email": typed,
+                },
+            )
+            results = results[:limit]
     return results
+
+
+async def send_proposed_email(
+    *,
+    org_id: str,
+    requester_user_id: str,
+    recipient_email: str,
+    subject: str,
+    body: str,
+) -> dict:
+    """Send an Ask-confirmed email from the requester's connected Gmail."""
+
+    recipient = recipient_email.strip()
+    if not _EMAIL_RE.match(recipient):
+        raise HTTPException(status_code=400, detail="Enter a valid email address.")
+    cleaned_subject = subject.strip()
+    cleaned_body = body.strip()
+    if not cleaned_subject or not cleaned_body:
+        raise HTTPException(status_code=400, detail="Subject and body are required.")
+
+    from integrations import has_google_workspace_connection
+    from notification_delivery import send_user_gmail
+
+    if not await has_google_workspace_connection(org_id, requester_user_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Connect Google Workspace to send email.",
+        )
+    try:
+        message_id = await send_user_gmail(
+            org_id=org_id,
+            user_id=requester_user_id,
+            recipient=recipient,
+            subject=cleaned_subject,
+            body=cleaned_body,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"status": "sent", "provider_message_id": message_id}
 
 
 async def send_proposed_expert_message(

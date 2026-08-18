@@ -88,8 +88,7 @@ final class StatusItemController: NSObject {
             } else {
                 menu.addItem(item("Pause Capture", #selector(pauseSession)))
             }
-            menu.addItem(item("End & Upload Summary", #selector(endUpload)))
-            menu.addItem(item("End, Upload & Create Skill File", #selector(endUploadAnalyze)))
+            menu.addItem(item("End", #selector(endSession)))
         }
 
         menu.addItem(NSMenuItem.separator())
@@ -160,11 +159,7 @@ final class StatusItemController: NSObject {
         engine.resume()
     }
 
-    @objc private func endUpload() {
-        Task { await finish(analyze: false) }
-    }
-
-    @objc private func endUploadAnalyze() {
+    @objc private func endSession() {
         Task { await finish(analyze: true) }
     }
 

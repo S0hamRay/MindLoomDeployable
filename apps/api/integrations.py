@@ -166,6 +166,13 @@ async def _get_connection(org_id: str, user_id: str, provider: str) -> AppConnec
         return _decrypt_connection_row(result.scalar_one_or_none())
 
 
+async def has_google_workspace_connection(org_id: str, user_id: str) -> bool:
+    """True when this user has a stored Google Workspace connection."""
+
+    row = await _get_connection(org_id, user_id, PROVIDER_GOOGLE_WORKSPACE)
+    return row is not None and bool(row.access_token)
+
+
 async def _save_connection(
     *,
     org_id: str,
