@@ -71,17 +71,32 @@ async def create_expert_request(
 
     factory = get_session_factory()
     async with factory() as session:
-        expert = (
-            await session.execute(text("""
+        if expert_email:
+            lookup_sql = """
                 SELECT user_id, email FROM users
                 WHERE org_id=:org
                   AND (
-                    (:email IS NOT NULL AND lower(email)=lower(:email))
+                    lower(email)=lower(:email)
                     OR lower(coalesce(name, ''))=lower(:name)
                   )
-                ORDER BY CASE WHEN lower(email)=lower(coalesce(:email, '')) THEN 0 ELSE 1 END
+                ORDER BY CASE WHEN lower(email)=lower(:email) THEN 0 ELSE 1 END
                 LIMIT 1
-            """), {"org": org_id, "email": expert_email, "name": expert_name})
+            """
+            lookup_params = {
+                "org": org_id,
+                "email": expert_email,
+                "name": expert_name,
+            }
+        else:
+            lookup_sql = """
+                SELECT user_id, email FROM users
+                WHERE org_id=:org
+                  AND lower(coalesce(name, ''))=lower(:name)
+                LIMIT 1
+            """
+            lookup_params = {"org": org_id, "name": expert_name}
+        expert = (
+            await session.execute(text(lookup_sql), lookup_params)
         ).mappings().one_or_none()
         if expert is None:
             return None

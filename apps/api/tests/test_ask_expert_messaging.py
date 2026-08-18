@@ -489,3 +489,45 @@ async def test_send_proposed_email_uses_caller_gmail(monkeypatch):
     assert captured["user_id"] == "u-me"
     assert captured["recipient"] == "jane@vendor.com"
     assert captured["subject"] == "Launch delay"
+
+
+@pytest.mark.asyncio
+async def test_create_expert_request_without_email_uses_name_only_query(monkeypatch):
+    captured: dict = {}
+
+    class FakeResult:
+        def mappings(self):
+            return self
+
+        def one_or_none(self):
+            return None
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def execute(self, statement, params):
+            captured["sql"] = str(statement)
+            captured["params"] = params
+            return FakeResult()
+
+    class FakeFactory:
+        def __call__(self):
+            return FakeSession()
+
+    monkeypatch.setattr(review_workflows, "get_session_factory", FakeFactory)
+    result = await review_workflows.create_expert_request(
+        org_id="org-1",
+        requester_user_id="u-me",
+        question="Email Amey about the launch",
+        expert_name="Amey Agarwal",
+        expert_email=None,
+        source_ids=[],
+    )
+
+    assert result is None
+    assert ":email" not in captured["sql"]
+    assert captured["params"] == {"org": "org-1", "name": "Amey Agarwal"}

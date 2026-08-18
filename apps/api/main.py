@@ -437,6 +437,7 @@ async def query(
         )
         if (
             response.proposed_message is None
+            and response.proposed_email is None
             and response.routed
             and response.expert
         ):
