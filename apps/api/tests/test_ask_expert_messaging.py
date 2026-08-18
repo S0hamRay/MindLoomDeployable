@@ -281,6 +281,7 @@ async def test_send_expert_message_enqueues_ingest(monkeypatch):
 def test_wants_messaging_detects_email_intent() -> None:
     assert ask_agent._wants_messaging("Email jane@vendor.com about the delay")
     assert ask_agent._wants_messaging("Send an email to the vendor")
+    assert not ask_agent._wants_messaging("What is our email policy?")
 
 
 @pytest.mark.asyncio

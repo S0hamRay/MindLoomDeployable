@@ -360,10 +360,16 @@ def _wants_messaging(question: str) -> bool:
         "reach out",
         "dm ",
         "text ",
-        "email ",
-        "e-mail",
         "an email",
-        "the email",
+        "e-mail",
+    )
+    if any(token in lowered for token in triggers):
+        return True
+    return bool(
+        re.search(
+            r"\be-?mail\s+(?:to\s+)?(?:the\s+)?(?!policy\b|address\b|settings\b|server\b)\S+",
+            lowered,
+        )
     )
     return any(token in lowered for token in triggers)
 

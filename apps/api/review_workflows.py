@@ -517,7 +517,7 @@ async def lookup_messageable_people(
     exclude_user_id: str | None = None,
     limit: int = 8,
 ) -> list[dict]:
-    """Rank signed-in org users matching name, email, or directory title/role."""
+    """Rank org users and directory emails matching name, email, or title/role."""
 
     cleaned = " ".join(query.strip().split())
     if not cleaned:
