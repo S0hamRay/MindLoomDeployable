@@ -1,14 +1,39 @@
-"""Lightweight schema upgrades for databases initialised before newer tables existed."""
+"""Apply the base Postgres schema, then idempotent upgrades for older databases."""
 
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from sqlalchemy import text
 
 from database import get_session_factory
 
 logger = logging.getLogger(__name__)
+
+_INIT_SQL_PATH = Path(__file__).resolve().parent / "db" / "init.sql"
+_SCHEMA_LOCK_SQL = "SELECT pg_advisory_xact_lock(hashtext('mindloom_schema'))"
+
+
+def _sql_statements(sql: str) -> list[str]:
+    """Split a SQL file into executable statements, ignoring line comments."""
+
+    statements: list[str] = []
+    buf: list[str] = []
+    for line in sql.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("--"):
+            continue
+        buf.append(line)
+        if stripped.endswith(";"):
+            stmt = "\n".join(buf).strip().rstrip(";").strip()
+            if stmt:
+                statements.append(stmt)
+            buf = []
+    tail = "\n".join(buf).strip().rstrip(";").strip()
+    if tail:
+        statements.append(tail)
+    return statements
 
 _APP_CONNECTIONS_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS app_connections (
@@ -295,11 +320,17 @@ _DURABLE_INTEGRATIONS_SQL = [
 
 
 async def ensure_schema() -> None:
-    """Apply idempotent DDL for tables added after first deploy."""
+    """Create the base schema on an empty database, then apply additive upgrades."""
 
     session_factory = get_session_factory()
+    init_statements = _sql_statements(_INIT_SQL_PATH.read_text(encoding="utf-8"))
     async with session_factory() as session:
         async with session.begin():
+            # Railway starts the API and worker independently. Serialize their
+            # first-run DDL so both cannot race to create the same base tables.
+            await session.execute(text(_SCHEMA_LOCK_SQL))
+            for statement in init_statements:
+                await session.execute(text(statement))
             await session.execute(text(_APP_CONNECTIONS_TABLE_SQL))
             await session.execute(text(_APP_CONNECTIONS_INDEX_SQL))
             await session.execute(text(_SYNC_CURSORS_TABLE_SQL))
@@ -309,4 +340,4 @@ async def ensure_schema() -> None:
             await session.execute(text(_CHUNKS_VISIBILITY_SQL))
             for statement in _DURABLE_INTEGRATIONS_SQL:
                 await session.execute(text(statement))
-    logger.info("Schema check complete (connections, captures, policies, sync cursors)")
+    logger.info("Schema check complete (base tables, connections, captures, policies)")
