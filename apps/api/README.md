@@ -24,6 +24,21 @@ Long imports are queued in Redis, tracked in PostgreSQL, and processed by
 `python -m worker`. Run the API and worker together; Docker Compose does this
 automatically.
 
+## Local chat models
+
+Organization administrators can switch Ask from OpenAI to a self-hosted model
+in Company home → Chat model. The base URL must expose the OpenAI-compatible
+`GET /v1/models` and `POST /v1/chat/completions` API, including SSE chunks when
+`stream: true` is requested. Ollama, vLLM, llama.cpp, or another server may be
+used when its OpenAI compatibility layer is enabled; enter the URL through
+`/v1` (for example `http://llm-host:8000/v1`) and the exact served model name.
+
+The endpoint is contacted by the API container, not by the browser. A Railway
+deployment therefore cannot use `localhost` to reach a model on a developer's
+laptop. Set `LOCAL_LLM_API_KEY` when the endpoint requires a bearer token.
+Embeddings remain on the existing OpenAI embedding path so stored pgvector
+dimensions and retrieval rankings do not change when the answer model changes.
+
 The Microsoft connection covers Teams and SharePoint. Its Entra delegated
 permissions are `User.Read`, `Team.ReadBasic.All`, `Channel.ReadBasic.All`,
 `ChannelMessage.Read.All`, `Chat.Read`, `Chat.Create`, `ChatMessage.Send`,

@@ -106,6 +106,18 @@ CREATE INDEX IF NOT EXISTS idx_connection_policies_org_provider
 ON connection_policies (org_id, provider)
 """
 
+_LLM_SETTINGS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS organization_llm_settings (
+    org_id          TEXT PRIMARY KEY REFERENCES organizations (org_id) ON DELETE CASCADE,
+    provider        TEXT NOT NULL DEFAULT 'openai' CHECK (provider IN ('openai', 'local')),
+    base_url        TEXT,
+    model           TEXT,
+    context_window  INTEGER NOT NULL DEFAULT 16384 CHECK (context_window >= 1024),
+    supports_tools  BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+)
+"""
+
 _CHUNKS_VISIBILITY_SQL = """
 ALTER TABLE chunks ADD COLUMN IF NOT EXISTS visible_to TEXT[] NOT NULL DEFAULT '{}'
 """
@@ -337,6 +349,7 @@ async def ensure_schema() -> None:
             await session.execute(text(_SYNC_CURSORS_INDEX_SQL))
             await session.execute(text(_CONNECTION_POLICIES_TABLE_SQL))
             await session.execute(text(_CONNECTION_POLICIES_INDEX_SQL))
+            await session.execute(text(_LLM_SETTINGS_TABLE_SQL))
             await session.execute(text(_CHUNKS_VISIBILITY_SQL))
             for statement in _DURABLE_INTEGRATIONS_SQL:
                 await session.execute(text(statement))

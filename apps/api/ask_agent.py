@@ -7,10 +7,10 @@ import logging
 import re
 from typing import Any
 
-from openai import AsyncOpenAI
 
 from answerer import generate_answer
 from config import get_settings
+from llm_provider import get_llm_client
 from models import (
     ChatMessage,
     EphemeralDocument,
@@ -959,11 +959,7 @@ async def run_ask_agent(
         else "not connected for this user — still draft the email so they can connect or copy it"
     )
 
-    settings = get_settings()
-    client = AsyncOpenAI(
-        api_key=settings.openai_api_key,
-        timeout=settings.openai_request_timeout_seconds,
-    )
+    client = await get_llm_client(org_id)
     messages: list[dict[str, Any]] = [
         {
             "role": "system",
@@ -982,6 +978,28 @@ async def run_ask_agent(
     pr_proposal: ProposedPullRequest | None = None
     ws_proposal: ProposedWorkspace | None = None
     used_github = False
+
+    if not client.configuration.supports_tools:
+        if wants_msg:
+            proposal, email_proposal = await _ensure_proposals(
+                question=question, org_id=org_id, user_id=user_id,
+                people_cache=people_cache, proposal=None, email_proposal=None,
+                google_connected=google_connected,
+            )
+            return QueryResponse(
+                answer=_messaging_answer() or base.answer, sources=[], expert=None,
+                confidence="high" if proposal or email_proposal else base.confidence,
+                routed=False, routed_reason=None, proposed_message=proposal,
+                proposed_email=email_proposal,
+            )
+        # Knowledge answers already use explicit retrieval then prompting. Actions
+        # that require structured arguments fail safely instead of being guessed.
+        if wants_gh or wants_ws:
+            base.answer += (
+                "\n\nThe active local model is configured without structured tool "
+                "calling, so I did not perform the requested action."
+            )
+        return base
 
     def _messaging_answer() -> str:
         if email_proposal is not None:

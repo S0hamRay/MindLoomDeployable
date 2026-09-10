@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     )
 
     openai_api_key: str = Field(..., description="API key used for OpenAI embeddings and chat completions.")
+    local_llm_api_key: str = Field(
+        default="local",
+        description="Optional bearer token for an OpenAI-compatible local LLM endpoint.",
+    )
+    local_llm_timeout_seconds: float = Field(default=60.0, gt=0)
     postgres_url: str = Field(..., description="SQLAlchemy connection URL for the PostgreSQL/pgvector database.")
     redis_url: str = Field(
         default="redis://localhost:6379/0",

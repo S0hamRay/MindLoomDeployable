@@ -11,9 +11,8 @@ import asyncio
 import logging
 import re
 
-from openai import AsyncOpenAI
 
-from config import get_settings
+from llm_provider import get_llm_client
 from documents import CitationNotFoundError, DocumentRepository, get_citation
 from models import ChatMessage, ChunkResult, Citation, EphemeralDocument, QueryResponse, RetrievalResult
 
@@ -209,11 +208,7 @@ async def generate_answer(
     retrieval.chunks.sort(key=lambda item: item.retrieval_score, reverse=True)
     context_string = _build_context(retrieval, ephemeral)
 
-    settings = get_settings()
-    client = AsyncOpenAI(
-        api_key=settings.openai_api_key,
-        timeout=settings.openai_request_timeout_seconds,
-    )
+    client = await get_llm_client(org_id)
 
     messages: list[dict[str, str]] = [
         {"role": "system", "content": _SYSTEM_PROMPT.format(context_string=context_string)},

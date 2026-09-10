@@ -25,6 +25,16 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE INDEX IF NOT EXISTS idx_users_org_id ON users (org_id);
 
+CREATE TABLE IF NOT EXISTS organization_llm_settings (
+    org_id          TEXT PRIMARY KEY REFERENCES organizations (org_id) ON DELETE CASCADE,
+    provider        TEXT NOT NULL DEFAULT 'openai' CHECK (provider IN ('openai', 'local')),
+    base_url        TEXT,
+    model           TEXT,
+    context_window  INTEGER NOT NULL DEFAULT 16384 CHECK (context_window >= 1024),
+    supports_tools  BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- --- Connected apps (per user, org-scoped) --------------------------------
 
 CREATE TABLE IF NOT EXISTS app_connections (

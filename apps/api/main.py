@@ -18,7 +18,7 @@ from uuid import uuid4
 
 from fastapi import BackgroundTasks, Body, Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse, RedirectResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -35,6 +35,7 @@ from auth import (
 )
 from config import get_settings, validate_production_secrets
 from database import close_pools
+from llm_provider import LLMProviderError
 from webhook_auth import verify_google_pubsub_oidc
 from google_workspace import (
     connect_google_workspace_dev,
@@ -84,6 +85,7 @@ from models import (
 from api.routes.captures import router as captures_router
 from api.routes.connection_setup import router as connection_setup_router
 from api.routes.github import router as github_router
+from api.routes.llm_settings import router as llm_settings_router
 from api.routes.reviews import router as reviews_router
 from api.routes.status import router as status_router
 from api.routes.whatsapp import router as whatsapp_router
@@ -133,6 +135,13 @@ from rate_limit import auth_limit, ingest_limit, limit, limiter, query_limit  # 
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(LLMProviderError)
+async def llm_provider_error(_request: Request, exc: LLMProviderError) -> JSONResponse:
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
+
+
 app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
@@ -145,6 +154,7 @@ app.add_middleware(
 app.include_router(captures_router)
 app.include_router(connection_setup_router)
 app.include_router(github_router)
+app.include_router(llm_settings_router)
 app.include_router(reviews_router)
 app.include_router(status_router)
 app.include_router(whatsapp_router)

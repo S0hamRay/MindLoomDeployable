@@ -127,8 +127,9 @@ async def test_loombot_context_only_skips_retrieve(monkeypatch) -> None:
         retrieve_called["n"] += 1
         return RetrievalResult(chunks=[], experts=[], entities_found=[])
 
-    async def fake_context_answer(question: str, context_md: str) -> str:
+    async def fake_context_answer(question: str, context_md: str, org_id: str) -> str:
         assert "Project X" in context_md
+        assert org_id == "org-1"
         assert "timeline" in question.lower() or True
         return "From CONTEXT.md: launch is Q3."
 

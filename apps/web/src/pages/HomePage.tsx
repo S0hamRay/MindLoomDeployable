@@ -4,6 +4,7 @@ import AppsView from "@/pages/AppsView";
 import OrganizationView from "@/pages/OrganizationView";
 import { Card, CardContent } from "@/components/ui/card";
 import { DesktopAgentDownload } from "@/components/DesktopAgentDownload";
+import { LLMSettingsPanel } from "@/components/LLMSettingsPanel";
 
 export default function HomePage({
   summary,
@@ -44,6 +45,8 @@ export default function HomePage({
       </section>
 
       <DesktopAgentDownload />
+
+      {isAdmin && <LLMSettingsPanel />}
 
       <section className="border-t border-border pt-8">
         <AppsView
