@@ -14,6 +14,7 @@ import { SecondaryButton } from "@/components/SecondaryButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ConnectionWizard } from "@/pages/integrations/ConnectionWizard";
+import GitHubConnector from "@/pages/integrations/GitHubConnector";
 import {
   connectGoogleWorkspaceDev,
   connectMicrosoftTeamsDev,
@@ -67,6 +68,7 @@ export default function AppsView({
   const workspace = integrations.find((item) => item.provider === "google_workspace");
   const teams = integrations.find((item) => item.provider === "microsoft_teams");
   const zoom = integrations.find((item) => item.provider === "zoom");
+  const github = integrations.find((item) => item.provider === "github");
 
   const loadIntegrations = useCallback(async () => {
     setLoading(true);
@@ -161,7 +163,8 @@ export default function AppsView({
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">Connected workspaces</h2>
         <p className="mt-1 text-muted-foreground">
-          Connect Google, Microsoft 365, or Zoom. Loom imports the locations you approve and keeps them current.
+          Connect Google, Microsoft 365, Zoom, or GitHub. Loom only uses the locations and
+          permissions you approve.
         </p>
       </div>
 
@@ -217,6 +220,13 @@ export default function AppsView({
         onManage={() => setWizardProvider("microsoft_teams")}
         onPause={(paused) => void setConnectionPaused("microsoft_teams", paused).then(loadIntegrations)}
         onDisconnect={() => void disconnectConnection("microsoft_teams").then(loadIntegrations)}
+      />
+
+      <GitHubConnector
+        connected={github?.connected}
+        account={github?.account_email}
+        selectedCount={github?.selected_resource_count}
+        onChanged={() => void loadIntegrations()}
       />
 
       <Card>

@@ -215,8 +215,8 @@ class Settings(BaseSettings):
     github_token: str = Field(
         default="",
         description=(
-            "GitHub personal access token (classic or fine-grained) used by the "
-            "Ask agent to list repositories and read file contents."
+            "Deprecated. GitHub access is now a per-user connector in Apps. "
+            "This server-wide token is ignored."
         ),
     )
     google_pubsub_push_audience: str = Field(
@@ -251,9 +251,9 @@ class Settings(BaseSettings):
 
     @property
     def github_enabled(self) -> bool:
-        """True when a GitHub token is configured for the Ask agent."""
+        """Deprecated: GitHub is enabled per user via the Apps connector."""
 
-        return bool(self.github_token.strip())
+        return False
 
     @property
     def google_oauth_enabled(self) -> bool:

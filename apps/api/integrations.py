@@ -38,6 +38,7 @@ os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
 PROVIDER_GOOGLE_WORKSPACE = "google_workspace"
 PROVIDER_MICROSOFT_TEAMS = "microsoft_teams"
 PROVIDER_ZOOM = "zoom"
+PROVIDER_GITHUB = "github"
 
 # Dev-only fallback when Redis is unavailable (single-process).
 _oauth_states: dict[str, tuple[str, str, datetime]] = {}
@@ -342,6 +343,7 @@ async def list_integrations(org_id: str, user_id: str) -> IntegrationsListRespon
     workspace_row = await _get_connection(org_id, user_id, PROVIDER_GOOGLE_WORKSPACE)
     teams_row = await _get_connection(org_id, user_id, PROVIDER_MICROSOFT_TEAMS)
     zoom_row = await _get_connection(org_id, user_id, PROVIDER_ZOOM)
+    github_row = await _get_connection(org_id, user_id, PROVIDER_GITHUB)
     workspace_policy = await get_policy(org_id, user_id, PROVIDER_GOOGLE_WORKSPACE)
     teams_policy = await get_policy(org_id, user_id, PROVIDER_MICROSOFT_TEAMS)
     zoom_policy = await get_policy(org_id, user_id, PROVIDER_ZOOM)
@@ -405,8 +407,29 @@ async def list_integrations(org_id: str, user_id: str) -> IntegrationsListRespon
             else None
         ),
     )
+    from github_access import connection_public_view, policy_from_scopes
+
+    if github_row is not None:
+        github_policy = policy_from_scopes(github_row.scopes)
+        github_public = connection_public_view(github_row.account_email or "", github_policy)
+        github = IntegrationInfo(
+            provider=PROVIDER_GITHUB,
+            label="GitHub",
+            connected=True,
+            account_email=github_row.account_email,
+            connected_at=github_row.created_at.isoformat(),
+            setup_status=str(github_public["setup_status"]),
+            selected_resource_count=int(github_public["selected_resource_count"]),
+        )
+    else:
+        github = IntegrationInfo(
+            provider=PROVIDER_GITHUB,
+            label="GitHub",
+            connected=False,
+            setup_status="not_connected",
+        )
     return IntegrationsListResponse(
-        integrations=[workspace, teams, zoom],
+        integrations=[workspace, teams, zoom, github],
         oauth_enabled=settings.google_oauth_enabled,
         microsoft_oauth_enabled=settings.microsoft_oauth_enabled,
         zoom_oauth_enabled=settings.zoom_oauth_enabled,

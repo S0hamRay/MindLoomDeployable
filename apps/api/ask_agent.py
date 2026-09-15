@@ -57,6 +57,9 @@ Messaging rules:
 - Google Workspace email sending is {gmail_status}.
 
 GitHub rules:
+- GitHub tools use this user's Apps connector, not a server token. They may only
+  see repositories and perform actions the user granted (metadata, file contents,
+  and/or pull requests).
 - When the user asks about GitHub repos, code, READMEs, or file contents, use the
   github_* tools. Prefer github_list_repos, then github_get_repo / github_get_file.
 - When the user asks you to change, update, fix, edit, or open a PR for a file:
@@ -67,8 +70,9 @@ GitHub rules:
   was opened or a file was committed.
 - For owner/repo, accept "owner/repo" or separate owner and repo fields.
 - Summarize tool results clearly; quote short snippets when useful.
-- If a tool returns a GITHUB_TOKEN configuration error, tell the user to set
-  GITHUB_TOKEN in the project .env and restart the API.
+- If a tool says GitHub is not connected or a repository/permission was not granted,
+  tell the user to open Apps, paste a fine-grained personal access token, and choose
+  exactly which repositories and actions MindLoom may use.
 
 Workspace rules:
 - When the user asks to create, make, set up, or spin up a workspace for a project
@@ -615,8 +619,18 @@ def _slug_branch(title: str) -> str:
     return f"loom/{slug}"
 
 
-async def _propose_github_pr(arguments: dict[str, Any]) -> tuple[Any, ProposedPullRequest | None]:
+async def _propose_github_pr(
+    arguments: dict[str, Any],
+    *,
+    org_id: str,
+    user_id: str,
+) -> tuple[Any, ProposedPullRequest | None]:
+    from github_access import CAP_CONTENTS, CAP_PULL_REQUESTS, load_github_access, _not_connected_error
     from github_client import get_file_contents, get_repo
+
+    access = await load_github_access(org_id, user_id)
+    if access is None:
+        return _not_connected_error(), None
 
     owner, repo = _split_owner_repo(arguments)
     path = str(arguments.get("path") or "").strip().lstrip("/")
@@ -631,14 +645,20 @@ async def _propose_github_pr(arguments: dict[str, Any]) -> tuple[Any, ProposedPu
     if not pr_title:
         return {"error": "pr_title is required."}, None
 
+    denied = access.deny(CAP_PULL_REQUESTS, owner, repo) or access.deny(
+        CAP_CONTENTS, owner, repo
+    )
+    if denied:
+        return {"error": denied}, None
+
     base_branch = str(arguments.get("base_branch") or "").strip()
     if not base_branch:
-        meta = await get_repo(owner, repo)
+        meta = await get_repo(access.token, owner, repo)
         if meta.get("error"):
             return meta, None
         base_branch = str(meta.get("default_branch") or "main")
 
-    existing = await get_file_contents(owner, repo, path, ref=base_branch)
+    existing = await get_file_contents(access.token, owner, repo, path, ref=base_branch)
     old_content = ""
     file_sha: str | None = None
     html_url: str | None = None
@@ -836,32 +856,69 @@ async def _run_tool(
         }, expert, None, None, email
 
     if name == "github_list_repos":
+        from github_access import (
+            CAP_METADATA,
+            filter_listed_repos,
+            load_github_access,
+            _not_connected_error,
+        )
         from github_client import list_repos
 
+        access = await load_github_access(org_id, user_id)
+        if access is None:
+            return _not_connected_error(), None, None, None, None
+        denied = access.deny(CAP_METADATA)
+        if denied:
+            return {"error": denied}, None, None, None, None
         owner = arguments.get("owner")
         per_page = arguments.get("per_page", 30)
         try:
             per_page_int = int(per_page) if per_page is not None else 30
         except (TypeError, ValueError):
             per_page_int = 30
-        return await list_repos(
+        listed = await list_repos(
+            token=access.token,
             owner=str(owner).strip() if owner else None,
             per_page=per_page_int,
-        ), None, None, None, None
+        )
+        if listed.get("error"):
+            return listed, None, None, None, None
+        repos = filter_listed_repos(listed.get("repositories") or [], access.policy)
+        return {
+            "count": len(repos),
+            "repositories": repos,
+            "granted_repositories": list(access.policy.repositories),
+            "granted_capabilities": list(access.policy.capabilities),
+        }, None, None, None, None
 
     if name == "github_get_repo":
+        from github_access import CAP_METADATA, load_github_access, _not_connected_error
         from github_client import get_repo
 
+        access = await load_github_access(org_id, user_id)
+        if access is None:
+            return _not_connected_error(), None, None, None, None
         owner, repo = _split_owner_repo(arguments)
-        return await get_repo(owner, repo), None, None, None, None
+        denied = access.deny(CAP_METADATA, owner, repo)
+        if denied:
+            return {"error": denied}, None, None, None, None
+        return await get_repo(access.token, owner, repo), None, None, None, None
 
     if name == "github_get_file":
+        from github_access import CAP_CONTENTS, load_github_access, _not_connected_error
         from github_client import get_file_contents
 
+        access = await load_github_access(org_id, user_id)
+        if access is None:
+            return _not_connected_error(), None, None, None, None
         owner, repo = _split_owner_repo(arguments)
+        denied = access.deny(CAP_CONTENTS, owner, repo)
+        if denied:
+            return {"error": denied}, None, None, None, None
         path = str(arguments.get("path") or "").strip()
         ref = arguments.get("ref")
         return await get_file_contents(
+            access.token,
             owner,
             repo,
             path,
@@ -869,7 +926,9 @@ async def _run_tool(
         ), None, None, None, None
 
     if name == "propose_github_pr":
-        result, pr = await _propose_github_pr(arguments)
+        result, pr = await _propose_github_pr(
+            arguments, org_id=org_id, user_id=user_id
+        )
         return result, None, pr, None, None
 
     if name == "propose_workspace":
