@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal, Optional, get_args
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, field_validator
 
 PersonStatus = Literal["active", "inactive"]
 
@@ -198,10 +198,32 @@ class OwnershipSignal(BaseModel):
     )
 
 
+_ENTITY_TYPES = frozenset(get_args(EntityType))
+# Models often emit these; they are not graph entity types (prompt: skip ordinary dates).
+_SKIP_ENTITY_TYPES = frozenset({"date", "datetime", "time", "timestamp", "day"})
+
+
 class TypedEntity(BaseModel):
     name: str
     type: EntityType = "topic"
     relevance: Literal["primary", "secondary"] = "secondary"
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def coerce_entity_type(cls, value: object) -> str:
+        if value is None or value == "":
+            return "topic"
+        kind = str(value).strip().lower()
+        if kind in _ENTITY_TYPES:
+            return kind
+        return "topic"
+
+    @field_validator("relevance", mode="before")
+    @classmethod
+    def coerce_relevance(cls, value: object) -> str:
+        if value in ("primary", "secondary"):
+            return str(value)
+        return "secondary"
 
 
 class ProjectUpdate(BaseModel):
@@ -256,6 +278,27 @@ class ChunkMetadata(BaseModel):
     project_updates: list[ProjectUpdate] = Field(default_factory=list)
     action_item_updates: list[ActionItemUpdate] = Field(default_factory=list)
     issue_updates: list[IssueUpdate] = Field(default_factory=list)
+
+    @field_validator("typed_entities", mode="before")
+    @classmethod
+    def drop_non_graph_entity_types(cls, value: object) -> object:
+        if not isinstance(value, list):
+            return value
+        kept: list[object] = []
+        for item in value:
+            if isinstance(item, dict):
+                kind = str(item.get("type") or "").strip().lower()
+                if kind in _SKIP_ENTITY_TYPES:
+                    continue
+            kept.append(item)
+        return kept
+
+    @field_validator("valid_until", mode="before")
+    @classmethod
+    def empty_valid_until(cls, value: object) -> object:
+        if value in ("", "null", "none", "n/a", "N/A"):
+            return None
+        return value
 
 
 class StatusEvidence(BaseModel):

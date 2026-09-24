@@ -81,7 +81,7 @@ Rules:
 - Routine email is noise unless it clearly reports ongoing unfinished work: FYIs, newsletters, scheduling, acknowledgements, receipts, and one-off mentions of a project name are not status items. Use knowledge_type "noise" and empty lifecycle lists.
 - "ownership" may be an empty list if no relationships are inferable.
 - Extract only facts explicitly supported by the text; do not guess missing people or relationships.
-- Keep entity names stable and specific. Do not treat ordinary dates as entities.
+- Keep entity names stable and specific. Do not treat ordinary dates as entities. Never set typed_entities.type to "date"; omit dates from typed_entities.
 - A decision is a committed choice, not a suggestion. An action item must describe assigned or requested work.
 - valid_until must be an ISO-8601 timestamp only when the text explicitly states an expiry.
 - summary: exactly one sentence capturing the latest progress or the point of the chunk. Never paste the full email or document into summary or evidence fields.
