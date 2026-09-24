@@ -70,8 +70,22 @@ Then rebuild the web image. People can:
 - Open `/download` on the website
 - Or use **Download Loom Capture for Mac** on the welcome page, Home, and Workflows
 
-macOS Gatekeeper blocks unsigned downloads. First launch: unzip, right-click
-**Loom Capture**, choose Open. Then grant Accessibility, quit, and reopen.
+Website downloads are blocked by Gatekeeper unless the zip is **Developer ID
+signed and notarized**. Ad-hoc signing is only for launching `dist/Loom Capture.app`
+on the build Mac.
+
+```bash
+# One-time: Apple Developer ID Application cert in Keychain, plus a notary profile:
+#   xcrun notarytool store-credentials loom-notary --apple-id … --team-id … --password <app-specific-password>
+export MACOS_CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+export MACOS_NOTARY_PROFILE="loom-notary"
+# Or App Store Connect API key: APPLE_API_KEY / APPLE_API_KEY_ID / APPLE_API_ISSUER
+LOOM_WEB_BASE=https://your-web-host ./scripts/package-app.sh
+```
+
+Until that zip is republished, first launch of a downloaded copy: Control-click
+**Loom Capture** → Open, or System Settings → Privacy & Security → Open Anyway.
+If Finder created **Loom Capture 2**, delete the extra copy and keep one app.
 
 The zip is gitignored by default. Either force-add it for Git-based deploys, or
 host it separately and set `VITE_DESKTOP_AGENT_DOWNLOAD_URL`.

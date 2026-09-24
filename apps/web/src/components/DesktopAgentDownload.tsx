@@ -81,10 +81,15 @@ export function DesktopAgentDownload({
         )}
         {ready && !compact && (
           <ol className="list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
-            <li>Download and unzip the app.</li>
             <li>
-              Right-click <span className="font-medium text-foreground">Loom Capture</span> and
-              choose Open (required the first time).
+              Download and unzip. Replace any older{" "}
+              <span className="font-medium text-foreground">Loom Capture</span> copy
+              (delete “Loom Capture 2” if Finder created one).
+            </li>
+            <li>
+              If macOS says Apple cannot check it for malicious software: Control-click
+              the app and choose Open, or use System Settings → Privacy &amp; Security
+              → Open Anyway.
             </li>
             <li>Enable Accessibility when asked, quit, and reopen.</li>
             <li>Sign in with Google from the agent window.</li>

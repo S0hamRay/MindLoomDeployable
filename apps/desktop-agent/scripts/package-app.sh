@@ -72,6 +72,11 @@ APP="$ROOT/dist/Loom Capture.app"
 CONTENTS="$APP/Contents"
 MACOS="$CONTENTS/MacOS"
 IDENTIFIER="com.mindloom.capture-agent"
+VERSION="${LOOM_CAPTURE_VERSION:-0.2.0}"
+BUILD="${LOOM_CAPTURE_BUILD:-2}"
+ENTITLEMENTS="$ROOT/scripts/LoomCapture.entitlements"
+# Developer ID Application: Your Name (TEAMID) — required for downloads Gatekeeper will open.
+CODESIGN_IDENTITY="${MACOS_CODESIGN_IDENTITY:-}"
 
 rm -rf "$ROOT/dist"
 mkdir -p "$MACOS"
@@ -87,14 +92,18 @@ cat > "$CONTENTS/Info.plist" <<PLIST
   <string>Loom Capture</string>
   <key>CFBundleIdentifier</key>
   <string>${IDENTIFIER}</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
   <key>CFBundleVersion</key>
-  <string>1</string>
+  <string>${BUILD}</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.1.0</string>
+  <string>${VERSION}</string>
   <key>CFBundleExecutable</key>
   <string>MindLoomAgent</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.productivity</string>
   <key>LSMinimumSystemVersion</key>
   <string>13.0</string>
   <key>NSHighResolutionCapable</key>
@@ -112,15 +121,81 @@ PLIST
 cp "$BIN" "$MACOS/MindLoomAgent"
 chmod +x "$MACOS/MindLoomAgent"
 
-# Ad-hoc sign the *bundle* so TCC ties permission to this app id (not a naked binary).
-# Re-run this script after every rebuild; then toggle Accessibility off/on once and relaunch.
-codesign --force --deep --sign - --identifier "$IDENTIFIER" "$APP"
+sign_bundle() {
+  local identity="$1"
+  local extra=()
+  if [[ "$identity" != "-" ]]; then
+    extra+=(--options runtime --timestamp)
+  fi
+  # Sign the executable, then the bundle. Avoid --deep (Apple recommends against it).
+  codesign --force --sign "$identity" --identifier "$IDENTIFIER" \
+    --entitlements "$ENTITLEMENTS" "${extra[@]}" "$MACOS/MindLoomAgent"
+  codesign --force --sign "$identity" --identifier "$IDENTIFIER" \
+    --entitlements "$ENTITLEMENTS" "${extra[@]}" "$APP"
+}
+
+if [[ -n "$CODESIGN_IDENTITY" ]]; then
+  echo "  signing: Developer ID ($CODESIGN_IDENTITY)"
+  sign_bundle "$CODESIGN_IDENTITY"
+else
+  echo "  signing: ad-hoc (Gatekeeper will block website downloads)"
+  echo "  set MACOS_CODESIGN_IDENTITY='Developer ID Application: … (TEAMID)' to ship a notarized build."
+  # Ad-hoc sign so TCC ties Accessibility to this app id (not a naked binary).
+  sign_bundle "-"
+fi
+
 xattr -cr "$APP" 2>/dev/null || true
 codesign --verify --verbose=2 "$APP"
 
 ZIP="$ROOT/dist/LoomCapture-macos.zip"
 # ditto preserves macOS metadata that a plain zip can strip.
-ditto -c -k --keepParent "$APP" "$ZIP"
+ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
+
+should_notarize() {
+  if [[ -z "$CODESIGN_IDENTITY" ]]; then
+    return 1
+  fi
+  if [[ "${MACOS_NOTARIZE:-}" == "0" ]]; then
+    return 1
+  fi
+  if [[ -n "${MACOS_NOTARY_PROFILE:-}" ]]; then
+    return 0
+  fi
+  if [[ -n "${APPLE_API_KEY:-}" && -n "${APPLE_API_KEY_ID:-}" && -n "${APPLE_API_ISSUER:-}" ]]; then
+    return 0
+  fi
+  return 1
+}
+
+if should_notarize; then
+  echo "  notarizing…"
+  if [[ -n "${MACOS_NOTARY_PROFILE:-}" ]]; then
+    xcrun notarytool submit "$ZIP" --keychain-profile "$MACOS_NOTARY_PROFILE" --wait
+  else
+    xcrun notarytool submit "$ZIP" \
+      --key "$APPLE_API_KEY" \
+      --key-id "$APPLE_API_KEY_ID" \
+      --issuer "$APPLE_API_ISSUER" \
+      --wait
+  fi
+  xcrun stapler staple "$APP"
+  ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
+  echo "  notarized and stapled"
+elif [[ -n "$CODESIGN_IDENTITY" ]]; then
+  echo "  warning: signed but not notarized. Gatekeeper still blocks first launch" >&2
+  echo "  until you staple a ticket. Set MACOS_NOTARY_PROFILE or APPLE_API_KEY /" >&2
+  echo "  APPLE_API_KEY_ID / APPLE_API_ISSUER (or MACOS_NOTARIZE=0 to skip)." >&2
+elif [[ "$WEB_BASE" != *localhost* && "$WEB_BASE" != *127.0.0.1* ]]; then
+  echo "  warning: this zip is for a public web origin but is only ad-hoc signed." >&2
+  echo "  Downloaded copies will show: Apple cannot check it for malicious software." >&2
+fi
+
+# Confirm the zip still verifies (zipping can strip the signature if ditto is skipped).
+VERIFY_DIR="$(mktemp -d)"
+ditto -x -k "$ZIP" "$VERIFY_DIR"
+codesign --verify --verbose=2 "$VERIFY_DIR/Loom Capture.app"
+spctl --assess --type execute -v "$VERIFY_DIR/Loom Capture.app" 2>/dev/null || true
+rm -rf "$VERIFY_DIR"
 
 WEB_DOWNLOADS="$ROOT/../web/public/downloads"
 mkdir -p "$WEB_DOWNLOADS"
